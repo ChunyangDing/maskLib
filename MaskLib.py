@@ -691,7 +691,40 @@ class Chip7mm(Chip):
                     Structure(self,start=(500,self.height-700),direction=315,defaults=self.defaults)]
         if wafer.frame:
             self.add(dxf.rectangle(self.center,6000,6000,layer=wafer.lyr('FRAME'),halign = const.CENTER,valign = const.MIDDLE,linetype='DOT'))
-            
+
+# ===============================================================================
+#  7mm CHIP CLASS, specific for fluxonium
+#       chip with 8 structures corresponding to the launcher positions
+#       NOTE: chip size still needs to be set in the wafer settings, this just determines structure location
+# ===============================================================================
+
+
+class ChipHelin(Chip):
+    def __init__(self,wafer,chipID,layer,structures=None,defaults=None):
+        Chip.__init__(self,wafer,chipID,layer,structures=structures)
+        self.defaults = {'w':10, 's':5, 'radius':25,'r_out':0,'r_ins':0}
+        if defaults is not None:
+            #self.defaults = defaults.copy()
+            for d in defaults:
+                self.defaults[d]=defaults[d]
+        if structures is not None:
+            #override default structures
+            self.structures = structures
+        else:
+            self.structures = [#hardwired structures
+                    Structure(self,start=(800,self.height/2 - 995),direction=0,defaults=self.defaults),
+                    Structure(self,start=(800,self.height/2 + 1005),direction=0,defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 - 1905, self.height-800), direction=270, defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 - 5, self.height-800), direction=270,defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 + 1895, self.height-800), direction=270,defaults=self.defaults),
+                    Structure(self,start=(self.width-800, self.height / 2 + 1005), direction=180,defaults=self.defaults),
+                    Structure(self,start=(self.width-800, self.height / 2 - 995), direction=180, defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 + 1895, 800), direction=90,defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 - 5,    800), direction=90,defaults=self.defaults),
+                    Structure(self,start=(self.width / 2 - 1905, 800), direction=90,defaults=self.defaults)]
+        if wafer.frame:
+            self.add(dxf.rectangle(self.center,6000,6000,layer=wafer.lyr('FRAME'),halign = const.CENTER,valign = const.MIDDLE,linetype='DOT'))
+
 # ===============================================================================
 #  10mm CHIP CLASS  
 #       chip with 8 structures corresponding to the launcher positions

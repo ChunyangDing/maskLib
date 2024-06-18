@@ -106,6 +106,84 @@ def waffle(chip, grid_x, grid_y=None,width=10,height=None,exclude=None,padx=0,pa
                 
     return chip
 
+def waffle_bumpbond(chip, grid_x, grid_y=None, width=10, height=None, exclude=None, padx=0, pady=None, bleedRadius=1, layer1='140_IUBM', layer2='40_UBM', layer3='45_BUMP'):
+    radius = max(int(bleedRadius), 0)
+
+    if exclude is None:
+        exclude = ['FRAME']
+    else:
+        exclude.append('FRAME')
+
+    if grid_y is None:
+        grid_y = grid_x
+
+    if height is None:
+        height = width
+
+    if pady is None:
+        pady = padx
+
+    nx, ny = list(map(int, [(chip.width) / grid_x, (chip.height) / grid_y]))
+    occupied = [[False] * ny for i in range(nx)]
+    for i in range(nx):
+        occupied[i][0] = True
+        occupied[i][-1] = True
+    for i in range(ny):
+        occupied[0][i] = True
+        occupied[-1][i] = True
+
+    for e in chip.chipBlock.get_data():
+        if isinstance(e.__dxftags__()[0], Polyline):
+            if e.layer not in exclude:
+                o_x_list = []
+                o_y_list = []
+                plinePts = [v.__getitem__('location').__getitem__('xy') for v in e.__dxftags__()[0].get_data()]
+                plinePts.append(plinePts[0])
+                for p in plinePts:
+                    o_x, o_y = list(map(int, (p[0] / grid_x, p[1] / grid_y)))
+                    if 0 <= o_x < nx and 0 <= o_y < ny:
+                        o_x_list.append(o_x)
+                        o_y_list.append(o_y)
+
+                        # this will however ignore a rectangle with corners outside the chip...
+                if o_x_list:
+                    path = Path([[pt[0] / grid_x, pt[1] / grid_y] for pt in plinePts], closed=True)
+                    for x in range(min(o_x_list) - 1, max(o_x_list) + 2):
+                        for y in range(min(o_y_list) - 1, max(o_y_list) + 2):
+                            try:
+                                if path.contains_point([x + .5, y + .5]):
+                                    occupied[x][y] = True
+                                elif path.intersects_bbox(Bbox.from_bounds(x, y, 1., 1.), filled=True):
+                                    occupied[x][y] = True
+                            except IndexError:
+                                pass
+
+    second_pass = deepcopy(occupied)
+    for r in range(radius):
+        for i in range(nx):
+            for j in range(ny):
+                if occupied[i][j]:
+                    for ip, jp in [(i + 1, j), (i - 1, j), (i, j + 1), (i, j - 1)]:
+                        try:
+                            second_pass[ip][jp] = True
+                        except IndexError:
+                            pass
+        second_pass = deepcopy(second_pass)
+
+    for i in range(int(padx / grid_x), nx - int(padx / grid_x)):
+        for j in range(int(pady / grid_y), ny - int(pady / grid_y)):
+            if not second_pass[i][j]:
+                pos = i * grid_x + grid_x / 2., j * grid_y + grid_y / 2.
+                chip.add(
+                    dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
+                                  layer=layer1))
+                chip.add(
+                    dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
+                                  layer=layer2))
+                chip.add(dxf.circle(radius=7.5, center=pos, bgcolor=chip.wafer.bg(), layer=layer3))
+
+    return chip
+
 # ===============================================================================
 # basic POSITIVE microstrip function definitions
 # ===============================================================================
