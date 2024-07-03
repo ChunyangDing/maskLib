@@ -460,12 +460,16 @@ class Wafer:
         self.XLAYER=XLAYER
         self.addLayer(XLAYER, xcolor)
        
-    def setupAirbridgeLayers(self,BRLAYER='BRIDGE',RRLAYER='TETHER',brcolor=36,rrcolor=41):
+    def setupAirbridgeLayers(self,BRLAYER='BRIDGE',RRLAYER='TETHER',IBRLAYER='IBRIDGE',IRRLAYER='ITETHER',brcolor=36,rrcolor=41):
         #add correct layers to wafer, and cache layer
         self.addLayer(BRLAYER,brcolor)
         self.BRLAYER=BRLAYER
         self.addLayer(RRLAYER,rrcolor)
         self.RRLAYER=RRLAYER
+        self.addLayer(IBRLAYER,brcolor)
+        self.IBRLAYER=IBRLAYER
+        self.addLayer(IRRLAYER,rrcolor)
+        self.IRRLAYER=IRRLAYER
 
     
 # ===============================================================================
@@ -510,7 +514,7 @@ class Chip:
         if wafer.frame:
             self.add(dxf.rectangle((0,0),self.width,self.height,layer=wafer.lyr(FRAME_NAME)))
     
-    def save(self,wafer,drawCopyDXF=False,dicingBorder=True,center=False, FRAME_LAYER=['FRAME',8,-1], MARKER_LAYER=['MARKERS',5,-1]):
+    def save(self,wafer,drawCopyDXF=False,dicingBorder=True,center=False, FRAME_LAYER=['IChipEdge',8,-1], MARKER_LAYER=['MARKERS',5,-1]):
         wafer.drawing.blocks.add(self.chipBlock)
         if drawCopyDXF:
             #make a copy DXF with only the chip

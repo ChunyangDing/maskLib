@@ -106,11 +106,12 @@ def waffle(chip, grid_x, grid_y=None,width=10,height=None,exclude=None,padx=0,pa
                 
     return chip
 
-def waffle_bumpbond(chip, grid_x, grid_y=None, width=10, height=None, exclude=None, padx=0, pady=None, bleedRadius=1, layer1='140_IUBM', layer2='40_UBM', layer3='45_BUMP'):
+def waffle_bumpbond(chip, grid_x, grid_y=None, width=10, height=None, exclude=None, padx=0, pady=None, bleedRadius=1, layer1='140_IUBM',
+                    layer2='40_UBM', layer3='45_BUMP', num_bumps=1):
     radius = max(int(bleedRadius), 0)
 
     if exclude is None:
-        exclude = ['FRAME']
+        exclude = ['FRAME', '703_ChipEdge']
     else:
         exclude.append('FRAME')
 
@@ -174,15 +175,22 @@ def waffle_bumpbond(chip, grid_x, grid_y=None, width=10, height=None, exclude=No
         for j in range(int(pady / grid_y), ny - int(pady / grid_y)):
             if not second_pass[i][j]:
                 pos = i * grid_x + grid_x / 2., j * grid_y + grid_y / 2.
-                chip.add(
-                    dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
-                                  layer=layer1))
-                chip.add(
-                    dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
-                                  layer=layer2))
-                chip.add(dxf.circle(radius=7.5, center=pos, bgcolor=chip.wafer.bg(), layer=layer3))
-
+                create_bumpbond(chip=chip, pos=pos, width=width, height=height, radius=7.5, layer1=layer1, layer2=layer2, layer3=layer3, num_bumps=num_bumps)
     return chip
+
+def create_bumpbond(chip, pos, width, height, radius, layer1, layer2, layer3, num_bumps=1):
+    chip.add(dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
+                      layer=layer1))
+    chip.add(dxf.rectangle(pos, width, height, bgcolor=chip.wafer.bg(), halign=const.CENTER, valign=const.MIDDLE,
+                      layer=layer2))
+    #Unable to use, because circle only creates a polyline with 32 sides, while LL requires the polyline to have 40-50 sides
+    # chip.add(dxf.circle(radius=7.5, center=pos, bgcolor=chip.wafer.bg(), layer=layer3))
+    initial_pos = pos
+    for i in range(num_bumps):
+        pos = (initial_pos[0] - radius - (20+2*radius)*(i-math.floor(num_bumps/2)), initial_pos[1] - radius)
+        chip.add(RoundRect(pos, height=radius*2, radius=radius, width=radius*2, roundCorners=[1, 1, 1, 1],
+                  rotation=0, ptDensity=45, layer=layer3))
+
 
 # ===============================================================================
 # basic POSITIVE microstrip function definitions
@@ -339,8 +347,8 @@ def Strip_stub_short(chip,structure,r_ins=None,w=None,flipped=False,extra_straig
     if r_ins > 0:
         if extra_straight_section and not flipped:
             Strip_straight(chip, struct(), r_ins, w=w,rotation=struct().direction,bgcolor=bgcolor,**kwargs)
-        chip.add(InsideCurve(struct().getPos((0,-w/2)),r_ins,rotation=struct().direction,hflip=flipped,bgcolor=bgcolor,**kwargs))
-        chip.add(InsideCurve(struct().getPos((0,w/2)),r_ins,rotation=struct().direction,hflip=flipped,vflip=True,bgcolor=bgcolor,**kwargs))
+        chip.add(InsideCurve(struct().getPos((0,w/2)),r_ins,rotation=struct().direction,hflip=flipped,bgcolor=bgcolor,**kwargs))
+        chip.add(InsideCurve(struct().getPos((0,-w/2)),r_ins,rotation=struct().direction,hflip=flipped,vflip=True,bgcolor=bgcolor,**kwargs))
         if extra_straight_section and flipped:
                 Strip_straight(chip, struct(), r_ins, w=w,rotation=struct().direction,bgcolor=bgcolor,**kwargs)
 
@@ -1403,16 +1411,21 @@ def CPW_tee_stub(chip,structure,stub_length,stub_w,tee_r=0,outer_width=None,w=No
 # ===============================================================================
 # Airbridges (Lincoln Labs designs)
 # ===============================================================================
-def setupAirbridgeLayers(wafer:m.Wafer,BRLAYER='BRIDGE',RRLAYER='TETHER',brcolor=41,rrcolor=32):
+def setupAirbridgeLayers(wafer:m.Wafer,BRLAYER='BRIDGE',RRLAYER='TETHER',brcolor=41,rrcolor=32,IBRLAYER='BRIDGE',IRRLAYER='TETHER',ibrcolor=41,irrcolor=32):
     #add correct layers to wafer, and cache layer
     wafer.addLayer(BRLAYER,brcolor)
     wafer.BRLAYER=BRLAYER
     wafer.addLayer(RRLAYER,rrcolor)
     wafer.RRLAYER=RRLAYER
+    wafer.addLayer(IBRLAYER,ibrcolor)
+    wafer.IBRLAYER=IBRLAYER
+    wafer.addLayer(IRRLAYER,irrcolor)
+    wafer.IRRLAYER=IRRLAYER
 
 def Airbridge(
     chip, structure, cpw_w=None, cpw_s=None, xvr_width=None, xvr_length=None, rr_width=None, rr_length=None,
-    rr_br_gap=None, rr_cpw_gap=None, shape_overlap=0, br_radius=0, clockwise=False, lincolnLabs=False, BRLAYER=None, RRLAYER=None, **kwargs):
+    rr_br_gap=None, rr_cpw_gap=None, shape_overlap=0, br_radius=0, clockwise=False, lincolnLabs=False, BRLAYER=None,
+        RRLAYER=None, IBRLAYER=None, IRRLAYER=None,  layer=None, **kwargs):
     """
     Define either cpw_w and cpw_s (refers to the cpw that the airbridge goes across) or xvr_length.
     xvr_length overrides cpw_w and cpw_s.
@@ -1437,18 +1450,45 @@ def Airbridge(
             print('\x1b[33ms not defined in ',chip.chipID)
 
     #get layers from wafer
-    if BRLAYER is None:
-        try:
-            BRLAYER = chip.wafer.BRLAYER
-        except AttributeError:
-            setupAirbridgeLayers(chip.wafer)
-            BRLAYER = chip.wafer.BRLAYER
-    if RRLAYER is None:
-        try:
-            RRLAYER = chip.wafer.RRLAYER
-        except AttributeError:
-            setupAirbridgeLayers(chip.wafer)
-            RRLAYER = chip.wafer.RRLAYER
+    if layer is None:
+        if BRLAYER is None:
+            try:
+                BRLAYER = chip.wafer.IBRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                BRLAYER = chip.wafer.IBRLAYER
+        if RRLAYER is None:
+            try:
+                RRLAYER = chip.wafer.IRRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                RRLAYER = chip.wafer.IRRLAYER
+    elif layer=='5_M1':
+        if BRLAYER is None:
+            try:
+                BRLAYER = chip.wafer.BRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                BRLAYER = chip.wafer.BRLAYER
+        if RRLAYER is None:
+            try:
+                RRLAYER = chip.wafer.RRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                RRLAYER = chip.wafer.RRLAYER
+    elif layer=='105_IM1':
+        if IBRLAYER is None:
+            try:
+                IBRLAYER = chip.wafer.IBRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                IBRLAYER = chip.wafer.IBRLAYER
+        if IRRLAYER is None:
+            try:
+                IRRLAYER = chip.wafer.IRRLAYER
+            except AttributeError:
+                setupAirbridgeLayers(chip.wafer)
+                IRRLAYER = chip.wafer.IRRLAYER
 
     if lincolnLabs:
         rr_br_gap = 1.5 # RR.BR.E.1
