@@ -111,7 +111,7 @@ def waffle_bumpbond(chip, grid_x, grid_y=None, width=10, height=None, exclude=No
     radius = max(int(bleedRadius), 0)
 
     if exclude is None:
-        exclude = ['FRAME', '703_ChipEdge']
+        exclude = ['FRAME', '703_ChipEdge', '101_IPOST', '103_IPOSTCLEAN', '12_DELBUMP']
     else:
         exclude.append('FRAME')
 
@@ -1479,16 +1479,16 @@ def Airbridge(
     elif layer=='105_IM1':
         if IBRLAYER is None:
             try:
-                IBRLAYER = chip.wafer.IBRLAYER
+                BRLAYER = chip.wafer.IBRLAYER
             except AttributeError:
                 setupAirbridgeLayers(chip.wafer)
-                IBRLAYER = chip.wafer.IBRLAYER
+                BRLAYER = chip.wafer.IBRLAYER
         if IRRLAYER is None:
             try:
-                IRRLAYER = chip.wafer.IRRLAYER
+                RRLAYER = chip.wafer.IRRLAYER
             except AttributeError:
                 setupAirbridgeLayers(chip.wafer)
-                IRRLAYER = chip.wafer.IRRLAYER
+                RRLAYER = chip.wafer.IRRLAYER
 
     if lincolnLabs:
         rr_br_gap = 1.5 # RR.BR.E.1
